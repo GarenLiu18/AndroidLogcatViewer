@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>Android LogCat Viewer</title>
+  <style>
+    body {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      font-family: monospace;
+      margin: 0;
+      padding: 0;
+    }
+    .toolbar {
+      padding: 10px;
+      background-color: #333;
+      border-bottom: 1px solid #444;
+      display: flex;
+      align-items: center;
+    }
+    .toolbar button {
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      margin-right: 5px;
+      cursor: pointer;
+    }
+    .toolbar button.active {
+      background-color: #666;
+    }
+    .toolbar input[type="file"] {
+      margin-left: auto;
+      color: #fff;
+    }
+    .log-entry {
+      border-bottom: 1px solid #2e2e2e;
+    }
+    .log-header {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .log-content {
+      padding: 5px 10px;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .log-info .log-header { color: #ffffff; }
+    .log-warning .log-header { color: #ffff66; }
+    .log-error .log-header { color: #ff6666; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="filterLogs('all')" class="active">All</button>
+    <button onclick="filterLogs('info')">Log</button>
+    <button onclick="filterLogs('warning')">Warning</button>
+    <button onclick="filterLogs('error')">Error</button>
+    <input type="file" accept=".txt" onchange="importLogFile(event)">
+  </div>
+
+  <div id="log-container"></div>
+
+  <script>
+    function filterLogs(type) {
+      const allButtons = document.querySelectorAll('.toolbar button');
+      allButtons.forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.toolbar button[onclick*="${type}"]`).classList.add('active');
+
+      const entries = document.querySelectorAll('.log-entry');
+      entries.forEach(entry => {
+        if (type === 'all' || entry.dataset.type === type) {
+          entry.style.display = 'block';
+        } else {
+          entry.style.display = 'none';
+        }
+      });
+    }
+
+    function importLogFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        const lines = content.split('\n');
+        const container = document.getElementById('log-container');
+        container.innerHTML = '';
+
+        const logMap = new Map();
+        const timestampRegex = /\d{2}:\d{2}:\d{2}\.\d{3}/;
+
+        lines.forEach(line => {
+          if (!line.trim()) return;
+          const timestampMatch = line.match(timestampRegex);
+          if (timestampMatch) {
+            const timestamp = timestampMatch[0];
+            if (!logMap.has(timestamp)) logMap.set(timestamp, []);
+            logMap.get(timestamp).push(line);
+          } else {
+            if (logMap.size > 0) {
+              const lastKey = Array.from(logMap.keys()).at(-1);
+              logMap.get(lastKey).push(line);
+            }
+          }
+        });
+
+        logMap.forEach((lines, timestamp) => {
+          const fullLog = lines.join('\n');
+          let type = 'info';
+          const lower = fullLog.toLowerCase();
+          if (lower.includes('error')) type = 'error';
+          else if (lower.includes('warn')) type = 'warning';
+
+          const entryDiv = document.createElement('div');
+          entryDiv.className = `log-entry log-${type}`;
+          entryDiv.dataset.type = type;
+
+          const header = document.createElement('div');
+          header.className = 'log-header';
+          header.textContent = lines[0];
+
+          const content = document.createElement('div');
+          content.className = 'log-content';
+          content.textContent = fullLog;
+
+          header.onclick = () => {
+            content.style.display = content.style.display === 'none' ? 'block' : 'none';
+          };
+
+          entryDiv.appendChild(header);
+          entryDiv.appendChild(content);
+          container.appendChild(entryDiv);
+        });
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
